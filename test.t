@@ -15,7 +15,7 @@ subtest 'simple' => sub {
 subtest '+' => sub {
     my $l = Lispl->new();
     my $tree = $l->parse('(+ 1 2 3 4 5 6 7 8 9 10)');
-    is($l->evaluate($tree), 5);
+    is($l->evaluate($tree), 55);
 };
 
 subtest 'define' => sub {
