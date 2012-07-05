@@ -5,6 +5,7 @@ use 5.16.0;
 use autodie;
 
 package Lispl::Env {
+    use List::Util qw(reduce);
     sub new {
         my ($class, $outer) = @_;
         bless {
@@ -22,12 +23,13 @@ package Lispl::Env {
     sub init_globals {
         my $self = shift;
         my %data = (
-            '+' => sub { $_[0] + $_[1] },
-            '*' => sub { $_[0] * $_[1] },
-            '-' => sub { $_[0] - $_[1] },
+            '+' => sub { reduce { $a + $b } @_ },
+            '-' => sub { reduce { $a - $b } @_ },
+            '*' => sub { reduce { $a * $b } @_ },
+            '/' => sub { reduce { $a / $b } @_ },
             '<=' => sub { $_[0] <= $_[1] },
             '>=' => sub { $_[0] >= $_[1] },
-            'say' => sub { say $_[0] },
+            'say' => sub { say @_ },
         );
         for my $k (keys %data) {
             $self->data->{$k} = $data{$k};

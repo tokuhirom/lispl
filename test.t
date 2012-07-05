@@ -12,6 +12,12 @@ subtest 'simple' => sub {
     is($l->evaluate($tree), 5);
 };
 
+subtest '+' => sub {
+    my $l = Lispl->new();
+    my $tree = $l->parse('(+ 1 2 3 4 5 6 7 8 9 10)');
+    is($l->evaluate($tree), 5);
+};
+
 subtest 'define' => sub {
     my $l = Lispl->new();
     my $tree = $l->parse('(begin (define x 4) x)');
