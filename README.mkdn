@@ -1,0 +1,6 @@
+(How to Write a (Lisp) Interpreter (in Perl))
+=============================================
+
+This is a perl port of lis.py.
+
+See http://norvig.com/lispy.html.
