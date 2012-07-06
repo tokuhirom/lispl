@@ -118,7 +118,7 @@ package Lispl {
         my ($self, $x, $env) = @_;
         $env ||= $self->{global_env};
 
-        if (!ref $x && $x =~ /^\d+$|^\d+\.\d+$/) {
+        if (!ref $x) {
             return $x; # int
         } elsif (UNIVERSAL::isa($x, 'Lispl::Symbol')) { # symbol
             return $env->find($x)->data->{$x};
