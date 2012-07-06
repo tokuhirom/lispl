@@ -2,10 +2,11 @@ use strict;
 use warnings;
 use utf8;
 use 5.16.0;
-use autodie;
 
 package Lispl::Env {
     use List::Util qw(reduce);
+    use Scalar::Util qw(blessed);
+
     sub new {
         my ($class, $outer) = @_;
         bless {
@@ -23,13 +24,50 @@ package Lispl::Env {
     sub init_globals {
         my $self = shift;
         my %data = (
-            '+' => sub { reduce { $a + $b } @_ },
-            '-' => sub { reduce { $a - $b } @_ },
-            '*' => sub { reduce { $a * $b } @_ },
-            '/' => sub { reduce { $a / $b } @_ },
-            '<=' => sub { $_[0] <= $_[1] },
-            '>=' => sub { $_[0] >= $_[1] },
-            'say' => sub { say @_ },
+            '+'       => sub { reduce { $a + $b } @_ },
+            '-'       => sub { reduce { $a - $b } @_ },
+            '*'       => sub { reduce { $a * $b } @_ },
+            '/'       => sub { reduce { $a / $b } @_ },
+            'not'     => sub { !$_[0] },
+            '>'       => sub { $_[0] > $_[1] ? 1 : 0},
+            '<'       => sub { $_[0] < $_[1] ? 1 : 0},
+            '>='      => sub { $_[0] >= $_[1] ? 1 : 0},
+            '<='      => sub { $_[0] <= $_[1] ? 1 : 0},
+            '='       => sub { $_[0] == $_[1] ? 1 : 0},
+            'equal?'  => sub {
+                if ($_[0] =~ /^\w+$/ && $_[1] =~ /^\w+$/) {
+                    $_[0] eq $_[1] ? 1 : 0;
+                } else {
+                    $_[0] == $_[1] ? 1 : 0;
+                }
+            },
+            'eq?'     => sub { $_[0] == $_[1] },
+            'length'  => sub {
+                if (ref $_[0] eq 'ARRAY') {
+                    scalar @{$_[0]};
+                } else {
+                    length $_[0];
+                }
+            },
+            'cons'    => sub { [$_[0], $_[1]] },
+            'car'     => sub { $_[0]->[0] },
+            'cdr'     => sub { [ @{$_[0]}[1..(scalar @{$_[0]} - 1)] ] },
+            'append'  => sub {
+                reduce {
+                    my @a = ref $a eq 'ARRAY' ? @{$a} : $a;
+                    my @b = ref $b eq 'ARRAY' ? @{$b} : $b;
+                    return [ @a, @b ];
+                } @_;
+            },
+            'list'    => sub { [ @_ ] },
+            'list?'   => sub { ref $_[0] eq 'ARRAY' ? 1 : 0 },
+            'null?'   => sub {
+                (ref $_[0] eq 'ARRAY' && scalar @{$_[0]} == 0) ? 1 : 0;
+            },
+            'symbol?' => sub {
+            use Data::Dumper; warn Dumper($_[0]);
+                (blessed $_[0] && $_[0]->isa("Lispl::Symbol")) ? 1 : 0;
+            },
         );
         for my $k (keys %data) {
             $self->data->{$k} = $data{$k};
@@ -52,6 +90,18 @@ package Lispl::Env {
     sub data  { shift->{data} }
 }
 
+package Lispl::Symbol {
+    use overload
+        q{""} => sub { ${$_[0]} },
+        fallback => 1,
+        ;
+
+    sub new {
+        my ($class, $data) = @_;
+        bless \$data, $class;
+    }
+}
+
 package Lispl {
     sub new {
         my $class = shift;
@@ -68,10 +118,10 @@ package Lispl {
         my ($self, $x, $env) = @_;
         $env ||= $self->{global_env};
 
-        if (!ref $x && $x !~ /^\d+$|^\d+\.\d+$/) { # it's variable
+        if (!ref $x && $x =~ /^\d+$|^\d+\.\d+$/) {
+            return $x; # int
+        } elsif (UNIVERSAL::isa($x, 'Lispl::Symbol')) { # symbol
             return $env->find($x)->data->{$x};
-        } elsif (!ref $x) {
-            return $x; # atom
         } elsif ($x->[0] eq 'quote') {
             shift @$x;
             return $x;
@@ -132,7 +182,11 @@ package Lispl {
                 die 'unexpected ")"';
             }
             default {
-                return $token;
+                if ($token =~ /^[0-9.]+$/) {
+                    return $token;
+                } else {
+                    return Lispl::Symbol->new($token);
+                }
             }
         }
     }
@@ -168,3 +222,4 @@ unless (caller) {
         warn Dumper($tree);
     }
 }
+
