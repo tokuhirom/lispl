@@ -6,6 +6,7 @@ use 5.16.0;
 package Lispl::Env {
     use List::Util qw(reduce);
     use Scalar::Util qw(blessed);
+    use List::MoreUtils qw(zip);
 
     sub new {
         my ($class, $outer) = @_;
@@ -49,7 +50,9 @@ package Lispl::Env {
                     length $_[0];
                 }
             },
-            'cons'    => sub { [$_[0], $_[1]] },
+            'cons'    => sub {
+                [$_[0], ref($_[1]) eq 'ARRAY' ? @{$_[1]} : $_[1]]
+            },
             'car'     => sub { $_[0]->[0] },
             'cdr'     => sub { [ @{$_[0]}[1..(scalar @{$_[0]} - 1)] ] },
             'append'  => sub {
@@ -65,8 +68,16 @@ package Lispl::Env {
                 (ref $_[0] eq 'ARRAY' && scalar @{$_[0]} == 0) ? 1 : 0;
             },
             'symbol?' => sub {
-            use Data::Dumper; warn Dumper($_[0]);
                 (blessed $_[0] && $_[0]->isa("Lispl::Symbol")) ? 1 : 0;
+            },
+            'zip' => sub {
+                my @ret;
+                for my $i (0..@{$_[0]}-1) {
+                    push @ret, [
+                        map { $_->[$i] } @_
+                    ];
+                }
+                return \@ret;
             },
         );
         for my $k (keys %data) {
@@ -123,8 +134,8 @@ package Lispl {
         } elsif (UNIVERSAL::isa($x, 'Lispl::Symbol')) { # symbol
             return $env->find($x)->data->{$x};
         } elsif ($x->[0] eq 'quote') {
-            shift @$x;
-            return $x;
+            my (undef, @a) = @$x;
+            return $a[0];
         } elsif ($x->[0] eq 'if') {
             if ($self->evaluate($x->[1], $env)) {
                 return $self->evaluate($x->[2], $env);
@@ -137,6 +148,7 @@ package Lispl {
         } elsif ($x->[0] eq 'define') {
             my (undef, $var, $exp) = @$x;
             $env->data->{$var} = $self->evaluate($exp, $env);
+            return;
         } elsif ($x->[0] eq 'lambda') {
             my (undef, $vars, $exp) = @$x;
             return sub {
@@ -182,7 +194,7 @@ package Lispl {
                 die 'unexpected ")"';
             }
             default {
-                if ($token =~ /^[0-9.]+$/) {
+                if ($token =~ /^-?[0-9.]+(?:e-?\d+)?$/) {
                     return $token;
                 } else {
                     return Lispl::Symbol->new($token);
@@ -217,9 +229,11 @@ unless (caller) {
         print "lispl> ";
         my $line = <> // last;
         chomp $line;
-        my $tree = Lispl->parse($line);
+        my $lispl = Lispl->new();
+        my $tree = $lispl->parse($line);
+        my $res = $lispl->evaluate($tree);
         use Data::Dumper;
-        warn Dumper($tree);
+        warn Dumper($res);
     }
 }
 

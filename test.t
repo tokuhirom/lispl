@@ -35,7 +35,6 @@ subtest 'set!' => sub {
     my $tree = $l->parse('(begin (define x 4) (set! x 5) x)');
     is($l->evaluate($tree), 5);
 };
-die if $ENV{DEBUGGING}; 
 
 subtest 'if' => sub {
     {
