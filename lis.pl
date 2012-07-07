@@ -113,6 +113,57 @@ package Lispl::Symbol {
     }
 }
 
+package Lispl::EOF {
+    my $__instance = bless [], Lispl::EOF::;
+    sub instance { $__instance }
+}
+
+package Lispl::Scanner {
+    use IO::Handle;
+    use IO::File;
+    use Carp;
+
+    sub new {
+        my ($class, $file) = @_;
+        $file // croak "Missing mandatory parameter: file";
+        bless {
+            file => $file,
+            line => '',
+        }, $class;
+    }
+
+    sub eof {
+        my $self = shift;
+        eof($self->{file});
+    }
+
+    sub next_token {
+        my ($self) = @_;
+        while (1) {
+            if ($self->{line} eq '') {
+                $self->{line} = $self->{file}->getline();
+            }
+            if (!defined $self->{line}) {
+                return Lispl::EOF->instance();
+            }
+            (my $token, $self->{line}) = ($self->{line} =~ m{
+                \s* # skip ws
+                (
+                        ,@
+                    |   [('`,)]                # kigou
+                    |   "(?:[\\.]|[^\\"])*"    # string
+                    |   ;.*                    # comment
+                    |   [^\s('"`,;)]*          # identifier, numeric, etc.
+                )
+                (.*) # rest part
+            }x);
+            if (length($token) > 0 && $token !~ /^;/) {
+                return $token;
+            }
+        }
+    }
+}
+
 package Lispl {
     sub new {
         my $class = shift;
@@ -203,12 +254,19 @@ package Lispl {
         }
     }
 
-    sub tokenize($) {
-        my $class = shift;
-        local $_ = shift;
-        s/\(/ ( /g;
-        s/\)/ ) /g;
-        [grep { length $_ } split /\s+/, $_];
+    sub tokenize {
+        my ($class, $src) = @_;
+        open my $fh, '<', \$src;
+        my $scanner = Lispl::Scanner->new($fh);
+        my @ret;
+        while (1) {
+            my $token = $scanner->next_token();
+            if (ref $token) {
+                last;
+            }
+            push @ret, $token;
+        }
+        return \@ret;
     }
 }
 
